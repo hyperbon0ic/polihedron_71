@@ -1,4 +1,4 @@
-from math import pi
+from math import pi, acos
 from functools import reduce
 from operator import add
 from common.r3 import R3
@@ -85,8 +85,9 @@ class Facet:
     """ Грань полиэдра """
     # Параметры конструктора: список вершин
 
-    def __init__(self, vertexes):
+    def __init__(self, vertexes, edges=[]):
         self.vertexes = vertexes
+        self.edges = edges
 
     # «Вертикальна» ли грань?
     def is_vertical(self):
@@ -116,6 +117,35 @@ class Facet:
         return sum(self.vertexes, R3(0.0, 0.0, 0.0)) * \
             (1.0 / len(self.vertexes))
 
+    def angle(self):
+        h = self.h_normal()
+        a = R3(0, 0, 1)
+        return acos(abs(h.dot(a))/(h.length()*a.length()))
+
+    def is_angle_less(self):
+        return self.angle() <= pi/7
+
+    def is_center_in(self, k):
+        # print(self.center().x/k)
+        return abs(self.center().x/k) < 1
+
+    def is_part(self):
+        for e in self.edges:
+            # print([(i.beg, i.fin) for i in e.gaps])
+            if not (len(e.gaps) == 0 or
+                    e.gaps[0].beg == 0 and e.gaps[0].fin == 1):
+                return True
+        return False
+
+    def area_proj(self, k):
+        c = self.center()
+        s = R3.area_2d(self.vertexes[0], self.vertexes[-1], c)
+        for i in range(len(self.vertexes)-1):
+            a = self.vertexes[i]
+            b = self.vertexes[i+1]
+            s += R3.area_2d(a, b, c)
+        return s/k**2
+
 
 class Polyedr:
     """ Полиэдр """
@@ -135,7 +165,7 @@ class Polyedr:
                     # обрабатываем первую строку; buf - вспомогательный массив
                     buf = line.split()
                     # коэффициент гомотетии
-                    c = float(buf.pop(0))
+                    self.k = float(buf.pop(0))
                     # углы Эйлера, определяющие вращение
                     alpha, beta, gamma = (float(x) * pi / 180.0 for x in buf)
                 elif i == 1:
@@ -145,7 +175,7 @@ class Polyedr:
                     # задание всех вершин полиэдра
                     x, y, z = (float(x) for x in line.split())
                     self.vertexes.append(R3(x, y, z).rz(
-                        alpha).ry(beta).rz(gamma) * c)
+                        alpha).ry(beta).rz(gamma) * self.k)
                 else:
                     # вспомогательный массив
                     buf = line.split()
@@ -154,16 +184,40 @@ class Polyedr:
                     # массив вершин этой грани
                     vertexes = list(self.vertexes[int(n) - 1] for n in buf)
                     # задание рёбер грани
+                    edges = []
                     for n in range(size):
-                        self.edges.append(Edge(vertexes[n - 1], vertexes[n]))
+                        edges.append(Edge(vertexes[n - 1], vertexes[n]))
+                    self.edges += edges
                     # задание самой грани
-                    self.facets.append(Facet(vertexes))
+                    self.facets.append(Facet(vertexes, edges))
+
+    def area(self):
+        area = 0
+
+        for e in self.edges:
+            for f in self.facets:
+                e.shadow(f)
+
+        for f in self.facets:
+            if f.is_part() and f.is_angle_less() and f.is_center_in(self.k):
+                area += f.area_proj(self.k)
+        return area
 
     # Метод изображения полиэдра
     def draw(self, tk):
+        area = 0
+
         tk.clean()
         for e in self.edges:
             for f in self.facets:
                 e.shadow(f)
             for s in e.gaps:
                 tk.draw_line(e.r3(s.beg), e.r3(s.fin))
+
+        for f in self.facets:
+            # print(f.is_part(), f.is_angle_less(),
+            # f.is_center_in(self.k), f.vertexes[0].x)
+            if f.is_part() and f.is_angle_less() and f.is_center_in(self.k):
+                # print(f.area_proj(self.k))
+                area += f.area_proj(self.k)
+        print(area)
