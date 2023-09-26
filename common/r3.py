@@ -1,6 +1,9 @@
 from math import sin, cos, sqrt
 
 
+# Для нахождения площади проекции треугольника в 
+# классе R3 был написан метод area_2d
+
 class R3:
     """ Вектор (точка) в R3 """
 
@@ -45,7 +48,7 @@ class R3:
     def length(self):
         return sqrt(self.x**2 + self.y**2 + self.z**2)
 
-    @staticmethod
+    @staticmethod # вычисление площади как 0.5 ВП
     def area_2d(a, b, c):
         return abs(0.5 *
                    ((a.x - c.x) * (b.y - c.y) - (a.y - c.y) * (b.x - c.x)))
